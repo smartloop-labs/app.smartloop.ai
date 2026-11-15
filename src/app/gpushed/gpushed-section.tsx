@@ -4,7 +4,7 @@
  * GPU Boxes: the account's gpushed balance, its box, what it has spent and
  * the GPUs it can run.
  *
- * gpushed (https://gpushed.smartloop.ai) gives each smartloop account a
+ * gpushed (https://gpushed.dev) gives each smartloop account a
  * personal NVIDIA GPU machine, created and managed from a Mac with the
  * `gpushed` CLI and paid from a prepaid balance. Its API lives at
  * gpushed-api.smartloop.ai and accepts the same session token as the rest
@@ -27,7 +27,7 @@ import { userService } from '@/app/services/user.service';
 import { GPUSHED_ENDPOINT } from '@/app/constants';
 import { CodeBlock, Row, Section } from '@/app/components/rows';
 
-const INSTALL = 'curl -fsSL gpushed.smartloop.ai/install.sh | bash';
+const INSTALL = 'curl -fsSL gpushed.dev/install.sh | bash';
 const TOPUP_AMOUNTS = [10, 25, 50, 100];
 const DAYS = 30;
 
@@ -473,8 +473,8 @@ export default function GpushedSection({ user }: { user: any }) {
           description={
             <>
               Hourly prices while running; a stopped box costs only its disk. Details on{' '}
-              <a href="https://gpushed.smartloop.ai" target="_blank" rel="noopener noreferrer" className={LINK_CLASS}>
-                gpushed.smartloop.ai
+              <a href="https://gpushed.dev" target="_blank" rel="noopener noreferrer" className={LINK_CLASS}>
+                gpushed.dev
               </a>
               .
             </>
