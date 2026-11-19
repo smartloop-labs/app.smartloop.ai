@@ -66,6 +66,8 @@ const getUser = async () => {
 
         is_paid: result.is_paid || false, // Subscription status from API
         is_premium: result.is_premium || false, // Premium status from API
+        plan: result.plan || 'free', // What metering applies (admin is unmetered)
+        billing_plan: result.billing_plan || 'free', // What the account pays for
         is_invited: result.is_invited || false, // Invite status from API
         is_accepted: result.is_accepted || false, // Accepted status from API
 
@@ -153,6 +155,8 @@ const fetchAndStoreUser = async (token) => {
         admin: result.is_superuser,
         is_paid: result.is_paid || false,
         is_premium: result.is_premium || false,
+        plan: result.plan || 'free',
+        billing_plan: result.billing_plan || 'free',
         is_invited: result.is_invited || false,
         is_accepted: result.is_accepted || false,
         premium: result.is_paid || false,

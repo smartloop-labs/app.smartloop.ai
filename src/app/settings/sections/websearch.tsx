@@ -35,7 +35,7 @@ interface Quota {
   credits_remaining?: number | null;
   period: string;
   resets_at: string;
-  plan: 'free' | 'paid' | 'plus' | 'admin';
+  plan: 'free' | 'paid' | 'plus' | 'max' | 'admin';
 }
 
 interface SearchStatus {
@@ -60,6 +60,7 @@ const PLAN_LABEL: Record<Quota['plan'], string> = {
   free: 'Free',
   paid: 'Pro',
   plus: 'Plus',
+  max: 'Max',
   admin: 'Admin',
 };
 
@@ -194,20 +195,22 @@ export default function WebSearchSection({ user }: { user: any }) {
               limit is hit as well as after — finding out at zero is too late
               to be useful. The allowances themselves are on the billing page,
               read from the API, so no number is kept here. */}
-          {(quota?.plan === 'free' || quota?.plan === 'paid') && (
+          {(quota?.plan === 'free' || quota?.plan === 'paid' || quota?.plan === 'plus') && (
             <Row
               label="Need more searches?"
               description={
                 quota.plan === 'free'
-                  ? 'Pro brings more monthly credits, and Plus more still.'
-                  : 'Plus brings more monthly credits.'
+                  ? 'Pro brings more monthly credits, and Plus and Max more still.'
+                  : quota.plan === 'paid'
+                    ? 'Plus brings more monthly credits, and Max the most.'
+                    : 'Max brings the most monthly credits.'
               }
             >
               <a
                 href="/settings/billing"
                 className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border border-accent-border hover:bg-accent-soft text-accent-text whitespace-nowrap"
               >
-                {quota.plan === 'free' ? 'See plans' : 'Upgrade to Plus'}
+                {quota.plan === 'free' ? 'See plans' : quota.plan === 'paid' ? 'Upgrade to Plus' : 'Upgrade to Max'}
               </a>
             </Row>
           )}

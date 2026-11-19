@@ -235,7 +235,7 @@ function PlanCards({
                 <Box>
                   <div className="text-base font-semibold text-content tracking-tight">{p.name}</div>
                   <div className="text-xs text-faint mt-0.5">
-                    {p.id === 'plus' ? 'For heavy cloud model use' : 'For everyday cloud model use'}
+                    {p.id === 'max' ? 'For the heaviest cloud model use' : p.id === 'plus' ? 'For heavy cloud model use' : 'For everyday cloud model use'}
                   </div>
                 </Box>
                 {featured && <Chip label="Best value" accent />}
@@ -368,9 +368,11 @@ export default function BillingSection() {
   // account itself is flagged paid/premium (premium granted outside Stripe has
   // no subscription object, so /payments/subscription 404s).
   const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'will_cancel';
-  const isPro = hasActiveSubscription || !!subscription?.is_premium || !!(user?.is_paid || user?.is_premium);
+  // Billing reflects what the account pays for, not its entitlements: an
+  // admin or hand-granted premium account with no subscription shows Free.
+  const isPro = hasActiveSubscription || !!subscription?.is_premium || (user?.billing_plan ?? 'free') !== 'free';
   // Which plan, as the API names it: free, paid (Pro), plus or admin.
-  const plan: string = subscription?.plan ?? user?.plan ?? (isPro ? 'paid' : 'free');
+  const plan: string = subscription?.plan ?? user?.billing_plan ?? (isPro ? 'paid' : 'free');
   const willCancel = subscription?.status === 'will_cancel';
   // current_period_end is an ISO date-time string from the API.
   const periodEnd = subscription?.current_period_end
