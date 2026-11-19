@@ -156,8 +156,8 @@ function PlanRow({
             <>
               {description ? <br /> : null}
               {plan === 'free'
-                ? `${current.credits.toLocaleString()} credits a month, good for about ${current.searches.toLocaleString()} web searches; cloud models need a paid plan.`
-                : `${current.credits.toLocaleString()} credits a month, shared by cloud models and web searches.`}
+                ? 'Cloud models need a paid plan.'
+                : `${current.credits.toLocaleString()} credits a month for cloud models.`}
             </>
           )}
         </>
@@ -168,15 +168,13 @@ function PlanRow({
   );
 }
 
-/** What a plan buys, as lines on its card: only what the API meters. One
- * pool pays for cloud models and web searches alike, so the searches line
- * says what the credits would stretch to, not a second allowance. */
+/** What a plan buys, as lines on its card: cloud models and the monthly
+ * credits that pay for them. */
 const planPerks = (p: PlanInfo, below: PlanInfo | null): string[] => {
   const perks: string[] = [];
   if (below && below.id !== 'free') perks.push(`Everything in ${below.name}`);
   perks.push(`${p.credits.toLocaleString()} credits a month`);
   perks.push('Cloud models, charged by what each call reads and writes');
-  perks.push(`Web searches from the same credits, up to ${p.searches.toLocaleString()} a month`);
   return perks;
 };
 
@@ -364,15 +362,11 @@ export default function BillingSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // A user is Pro if the subscription endpoint reports premium/active OR the
-  // account itself is flagged paid/premium (premium granted outside Stripe has
-  // no subscription object, so /payments/subscription 404s).
-  const hasActiveSubscription = subscription?.status === 'active' || subscription?.status === 'will_cancel';
-  // Billing reflects what the account pays for, not its entitlements: an
-  // admin or hand-granted premium account with no subscription shows Free.
-  const isPro = hasActiveSubscription || !!subscription?.is_premium || (user?.billing_plan ?? 'free') !== 'free';
-  // Which plan, as the API names it: free, paid (Pro), plus or admin.
-  const plan: string = subscription?.plan ?? user?.billing_plan ?? (isPro ? 'paid' : 'free');
+  // Which plan the account pays for, as the API names it: free, paid (Pro),
+  // plus or max. Everything below follows it, so a stale subscription status
+  // can never put an "Active" chip next to Free.
+  const plan: string = subscription?.plan ?? user?.billing_plan ?? 'free';
+  const isPro = plan !== 'free';
   const willCancel = subscription?.status === 'will_cancel';
   // current_period_end is an ISO date-time string from the API.
   const periodEnd = subscription?.current_period_end
@@ -450,7 +444,7 @@ export default function BillingSection() {
                     plans={plans}
                     description={
                       <>
-                        Need more credits, more searches, or email support?{' '}
+                        Want cloud models, more credits, or email support?{' '}
                         <a
                           href={PRICING_URL}
                           target="_blank"
