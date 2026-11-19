@@ -412,7 +412,7 @@ function CreditsSection() {
             <button
               onClick={addCredits}
               disabled={busy}
-              className="plan-card-button plan-card-button--filled px-4 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-60"
+              className="inline-flex items-center justify-center px-4 py-1.5 rounded-lg text-sm font-medium border border-accent-border text-accent-text hover:bg-accent-soft transition-colors whitespace-nowrap disabled:opacity-60"
             >
               {busy ? 'Opening checkout…' : `Add $${amount} of credits`}
             </button>
