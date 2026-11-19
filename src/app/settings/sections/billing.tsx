@@ -606,7 +606,7 @@ export default function BillingSection() {
                     plans={plans}
                     description={
                       isPartner ? (
-                        'Your plan is set up by smartloop as part of a partnership.'
+                        'Set up by smartloop as part of a partnership: unlimited cloud models and web search.'
                       ) : (
                         <>
                           Want cloud models, more credits, or email support?{' '}

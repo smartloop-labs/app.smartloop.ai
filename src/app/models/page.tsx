@@ -178,7 +178,7 @@ export default function Models() {
   if (!user) return null;
 
   const allModels = models || [];
-  const hasPlan = !!(user.is_paid || user.is_premium);
+  const hasPlan = !!(user.is_paid || user.is_premium || user.is_partner);
 
   // Models with a published figure are plotted; the rest are named under the
   // chart. SL-mini is among the latter — it routes between these models rather
