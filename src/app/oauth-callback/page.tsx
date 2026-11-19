@@ -106,21 +106,25 @@ function OAuthCallbackContent() {
         return;
       }
 
-      // Handle Apple OAuth differently since it redirects with token as URL parameter
+      // Apple: the API hands the tokens over in the URL fragment, which never
+      // reaches a server, a log or a Referer. Older API pages put them in the
+      // query (?code=&refresh_token=), so read both, then drop them from the
+      // address bar and history.
       if (provider === "apple") {
-        const token = searchParams.get("code");
+        const fragment = new URLSearchParams(window.location.hash.slice(1));
+        const token = fragment.get("access_token") ?? searchParams.get("code");
+        const refreshToken =
+          fragment.get("refresh_token") ?? searchParams.get("refresh_token");
+        window.history.replaceState(null, "", window.location.pathname);
         if (!token) {
           setErrorMessage("Missing token from Apple OAuth.");
           return;
         }
 
-        // Store the token
         localStorage.setItem("token", token);
-        storeRefreshToken(null);
+        storeRefreshToken(refreshToken);
 
-        // Handle redirect for both native and regular modes
-        // Apple OAuth doesn't provide a refresh_token here
-        await handleAppRedirect(token, null, cliState, mode);
+        await handleAppRedirect(token, refreshToken || null, cliState, mode);
         return;
       }
 
