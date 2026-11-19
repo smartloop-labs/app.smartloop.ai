@@ -1,21 +1,20 @@
 'use client';
 
 /**
- * GPU Boxes: the account's gpushed balance, its box, what it has spent and
- * the GPUs it can run.
+ * GPU Boxes: the credits the account's box can spend, its box, what it has
+ * spent and the GPUs it can run.
  *
  * gpushed (https://gpushed.dev) gives each smartloop account a
  * personal NVIDIA GPU machine, created and managed from a Mac with the
- * `gpushed` CLI and paid from a prepaid balance. Its API lives at
+ * `gpushed` CLI. It spends the account's credits (the plan's monthly ones,
+ * then any added), the same wallet as cloud models and web search, so
+ * credits are added on the Billing page, not here. Its API lives at
  * gpushed-api.smartloop.ai and accepts the same session token as the rest
  * of the app, so this page reads it directly:
  *
- *   GET  /me                  balance and the current box
- *   GET  /usage?days=30       spend and top-ups per day (UTC)
- *   GET  /ledger?kind=topup   recent top-ups
+ *   GET  /me                  credits available and the current box
+ *   GET  /usage?days=30       spend per day (UTC)
  *   GET  /plans               GPUs and their hourly price
- *   POST /topup               Stripe Checkout; return_url brings people back
- *                             here with ?topup=done or ?topup=cancelled
  *
  * Boxes are created, stopped and deleted from the CLI, not here: the page
  * shows the box and the commands rather than duplicating them.
@@ -28,7 +27,6 @@ import { GPUSHED_ENDPOINT } from '@/app/constants';
 import { CodeBlock, Row, Section } from '@/app/components/rows';
 
 const INSTALL = 'curl -fsSL gpushed.dev/install.sh | bash';
-const TOPUP_AMOUNTS = [10, 25, 50, 100];
 const DAYS = 30;
 
 interface GpuBox {
@@ -70,11 +68,6 @@ interface Plans {
   default: string;
   region: string;
   plans: Plan[];
-}
-
-interface TopupEntry {
-  amount_usd: string;
-  created_at: number;
 }
 
 /** undefined while loading, null if the request failed. */
@@ -275,72 +268,10 @@ function NoBoxRow() {
   );
 }
 
-function TopupControl({ me }: { me: Me }) {
-  const amounts = TOPUP_AMOUNTS.filter((a) => a >= me.min_topup_usd);
-  const [amount, setAmount] = useState(amounts[1] ?? amounts[0] ?? me.min_topup_usd);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const topup = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const r: Response | undefined = await userService.makeAuthenticatedRequest(`${GPUSHED_ENDPOINT}/topup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount_usd: amount,
-          return_url: `${window.location.origin}${window.location.pathname}`,
-        }),
-      });
-      const body = r ? await r.json().catch(() => ({})) : {};
-      if (r?.ok && body.url) {
-        window.location.href = body.url;
-        return;
-      }
-      setError(body.error ?? 'Could not start checkout. Try again.');
-    } catch {
-      setError('Could not start checkout. Try again.');
-    }
-    setBusy(false);
-  };
-
-  return (
-    <Box className="flex flex-col gap-2">
-      <Box className="flex flex-wrap items-center gap-2">
-        {amounts.map((a) => (
-          <button
-            key={a}
-            onClick={() => setAmount(a)}
-            className={`px-3 py-1.5 rounded-lg text-sm border transition-colors tabular-nums ${
-              a === amount
-                ? 'border-accent-border bg-accent-soft text-accent-text font-medium'
-                : 'border-border text-muted hover:bg-surface-2 hover:text-content'
-            }`}
-          >
-            ${a}
-          </button>
-        ))}
-        <button
-          onClick={topup}
-          disabled={busy}
-          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium border border-accent-border text-accent-text hover:bg-accent-soft transition-colors disabled:opacity-60"
-        >
-          {busy && <Pending />}
-          Add ${amount}
-        </button>
-      </Box>
-      {error && <p className="text-xs text-danger">{error}</p>}
-    </Box>
-  );
-}
-
 export default function GpushedSection({ user }: { user: any }) {
   const [me, setMe] = useState<Loaded<Me>>(undefined);
   const [usage, setUsage] = useState<Loaded<Usage>>(undefined);
   const [plans, setPlans] = useState<Loaded<Plans>>(undefined);
-  const [topups, setTopups] = useState<Loaded<TopupEntry[]>>(undefined);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const loadMe = useCallback(() => get<Me>('/me').then(setMe).catch(() => setMe(null)), []);
 
@@ -349,50 +280,22 @@ export default function GpushedSection({ user }: { user: any }) {
     loadMe();
     get<Usage>(`/usage?days=${DAYS}`).then(setUsage).catch(() => setUsage(null));
     get<Plans>('/plans').then(setPlans).catch(() => setPlans(null));
-    get<{ entries: TopupEntry[] }>('/ledger?kind=topup')
-      .then((r) => setTopups(r ? r.entries : null))
-      .catch(() => setTopups(null));
   }, [user, loadMe]);
 
-  // Back from Stripe Checkout: the webhook credits the balance a few seconds
-  // after the payment, so check again a few times.
-  useEffect(() => {
-    if (!user) return;
-    const params = new URLSearchParams(window.location.search);
-    const result = params.get('topup');
-    if (!result) return;
-    window.history.replaceState(null, '', window.location.pathname);
-    if (result === 'cancelled') {
-      setNotice('Top-up cancelled. You were not charged.');
-      return;
-    }
-    setNotice('Payment received. Your balance updates in a few seconds.');
-    const timers = [3000, 8000, 15000].map((ms) => setTimeout(loadMe, ms));
-    return () => timers.forEach(clearTimeout);
-  }, [user, loadMe]);
-
-  const failed = me === null || usage === null || plans === null || topups === null;
+  const failed = me === null || usage === null || plans === null;
   const empty = me && me.balance_micros <= 0;
 
   return (
     <Section
       title="GPU Boxes"
-      description="Your own NVIDIA GPU machine for research, created and managed from your Mac with gpushed. It's paid from a prepaid balance and billed by the second at the plan's hourly price."
+      description="Your own NVIDIA GPU machine for research, created and managed from your Mac with gpushed. It's billed by the second at the plan's hourly price, from the same credits as cloud models and web search."
     >
-      {notice && (
-        <Row stacked>
-          <Box className="p-3 rounded-lg border border-border bg-surface-2">
-            <p className="text-sm text-content">{notice}</p>
-          </Box>
-        </Row>
-      )}
-
       <Row
-        label="Balance"
+        label="Credits available"
         description={
           me
-            ? `Minimum top-up $${me.min_topup_usd}. We email you when it runs low; a running box is stopped before it reaches zero.`
-            : 'Checking your balance…'
+            ? "Your plan's credits this month plus any you've added, shared with cloud models and web search. We email you when they run low; a running box is stopped before they run out."
+            : 'Checking your credits…'
         }
         stacked
       >
@@ -411,7 +314,12 @@ export default function GpushedSection({ user }: { user: any }) {
             {me?.low_balance && <Badge label="Low" tone="warn" />}
             {empty && <Badge label="No credit" tone="danger" />}
           </Box>
-          {me && <TopupControl me={me} />}
+          <a
+            href="/settings/billing"
+            className="self-start inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-accent-border hover:bg-accent-soft text-accent-text whitespace-nowrap"
+          >
+            Add credits in Billing
+          </a>
         </Box>
       </Row>
 
@@ -430,8 +338,7 @@ export default function GpushedSection({ user }: { user: any }) {
           <Box className="flex flex-col gap-4">
             <Box className="flex flex-wrap gap-2">
               <Stat label="Spent" value={usage ? `$${usage.total_usage_usd}` : '—'} />
-              <Stat label="Added" value={usage ? `$${usage.total_topup_usd}` : '—'} />
-              <Stat label="Balance" value={me ? `$${me.balance_usd}` : '—'} />
+              <Stat label="Available" value={me ? `$${me.balance_usd}` : '—'} />
             </Box>
             {usage ? (
               <SpendChart usage={usage} />
@@ -442,28 +349,6 @@ export default function GpushedSection({ user }: { user: any }) {
               </Box>
             )}
           </Box>
-        </Row>
-      )}
-
-      {topups !== null && (
-        <Row label="Top-ups" stacked>
-          {topups === undefined ? (
-            <Box className="flex items-center gap-2">
-              <Pending />
-              <span className="text-sm text-faint">Loading…</span>
-            </Box>
-          ) : topups.length === 0 ? (
-            <p className="text-xs text-faint">No top-ups yet.</p>
-          ) : (
-            <Box className="flex flex-col divide-y divide-border rounded-lg border border-border">
-              {topups.slice(0, 10).map((t) => (
-                <Box key={t.created_at} className="flex items-center justify-between px-3 py-2 text-sm">
-                  <span className="text-muted">{dateTime(t.created_at)}</span>
-                  <span className="text-content tabular-nums">+${t.amount_usd}</span>
-                </Box>
-              ))}
-            </Box>
-          )}
         </Row>
       )}
 
