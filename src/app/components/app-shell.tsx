@@ -54,8 +54,6 @@ const NAV_GROUPS: {
   },
   {
     heading: 'GPU Boxes',
-    // TEMP: until gpushed launches (see src/app/gpushed/page.tsx).
-    adminOnly: true,
     items: [{ label: 'gpushed', path: '/gpushed', icon: DeveloperBoardOutlinedIcon }],
   },
   {
