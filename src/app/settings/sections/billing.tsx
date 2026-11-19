@@ -182,10 +182,11 @@ const planPerks = (p: PlanInfo, below: PlanInfo | null): string[] => {
 };
 
 /**
- * The plans above the current one that this deployment sells, as cards:
- * a free account sees Pro and Plus, a Pro account sees Plus. The top plan
- * carries the filled button and a "Best value" mark; the rest are
- * outlined, so the eye lands on one thing. Prices come from the API.
+ * Every plan this deployment sells, as cards, whatever the account is on:
+ * the current one is marked, higher ones offer an upgrade, lower ones a
+ * switch (both confirmed on Stripe). The top plan, unless it's the current
+ * one, carries the filled button and a "Best value" mark, so the eye lands
+ * on one thing. Prices come from the API.
  */
 function PlanCards({
   plan,
@@ -197,24 +198,29 @@ function PlanCards({
   onUpgrade: (id: string) => void;
 }) {
   const rank = PLAN_RANK[plan] ?? 0;
-  const upgrades = (plans ?? []).filter(
-    (p) => p.available && PURCHASABLE_PLANS[p.id] && (PLAN_RANK[p.tier] ?? 0) > rank
-  );
-  if (upgrades.length === 0) return null;
-  const top = upgrades[upgrades.length - 1];
+  const offered = (plans ?? []).filter((p) => p.available && PURCHASABLE_PLANS[p.id]);
+  if (offered.length === 0) return null;
+  const top = offered[offered.length - 1];
+  const paying = rank > 0;
 
   return (
     <Row
-      label="Upgrade"
-      description="Pick a plan; you'll confirm on Stripe and can change or cancel it there at any time."
+      label={paying ? 'Plans' : 'Upgrade'}
+      description={
+        paying
+          ? "Change plan any time; you'll confirm on Stripe. Upgrades apply now, with the price difference prorated."
+          : "Pick a plan; you'll confirm on Stripe and can change or cancel it there at any time."
+      }
       stacked
     >
       <Box
         className="grid gap-4"
-        sx={{ gridTemplateColumns: { xs: '1fr', sm: `repeat(${upgrades.length}, minmax(0, 1fr))` } }}
+        sx={{ gridTemplateColumns: { xs: '1fr', sm: `repeat(${offered.length}, minmax(0, 1fr))` } }}
       >
-        {upgrades.map((p) => {
-          const featured = p.id === top.id;
+        {offered.map((p) => {
+          const tier = PLAN_RANK[p.tier] ?? 0;
+          const current = tier === rank;
+          const featured = p.id === top.id && !current && tier > rank;
           const below = plans?.find((b) => (PLAN_RANK[b.tier] ?? 0) === (PLAN_RANK[p.tier] ?? 0) - 1) ?? null;
           return (
             <Box
@@ -239,7 +245,7 @@ function PlanCards({
                     {p.id === 'max' ? 'For the heaviest cloud model use' : p.id === 'plus' ? 'For heavy cloud model use' : 'For everyday cloud model use'}
                   </div>
                 </Box>
-                {featured && <Chip label="Best value" accent />}
+                {current ? <Chip label="Current plan" /> : featured && <Chip label="Best value" accent />}
               </Box>
 
               <Box className="flex items-baseline gap-1">
@@ -265,12 +271,13 @@ function PlanCards({
               </ul>
 
               <button
-                onClick={() => onUpgrade(p.id)}
-                className={`plan-card-button mt-auto w-full py-2.5 rounded-lg text-sm font-medium transition-all ${
+                onClick={() => !current && onUpgrade(p.id)}
+                disabled={current}
+                className={`plan-card-button mt-auto w-full py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-default ${
                   featured ? 'plan-card-button--filled' : 'plan-card-button--outlined'
                 }`}
               >
-                Upgrade to {p.name}
+                {current ? 'Your plan' : tier > rank ? `Upgrade to ${p.name}` : `Switch to ${p.name}`}
               </button>
             </Box>
           );

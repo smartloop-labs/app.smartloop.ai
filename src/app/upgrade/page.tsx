@@ -17,7 +17,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import LoadingSpinner from '@/app/components/loading-spinner';
 import AuthHeader from '@/app/components/auth-header';
 import { userService } from '@/app/services/user.service';
-import { CHECKOUT_PATH, PURCHASABLE_PLANS, alreadyOn } from '@/app/shared/utils';
+import { CHECKOUT_PATH, PURCHASABLE_PLANS } from '@/app/shared/utils';
 import { API_ENDPOINT } from '@/app/constants';
 
 // Back here, plan and all, once signed in.
@@ -129,13 +129,13 @@ export default function Upgrade() {
           return;
         }
 
-        // Already on this plan or a higher one — there is nothing to buy, so
-        // send them to Stripe's customer portal instead. Paying for a lower
-        // plan, checkout moves them up (the API answers with the portal's
-        // plan-change confirmation). Either way this route ends up on Stripe.
-        // billing_plan, not plan: an admin or premium account that pays
-        // nothing is on Free here and can buy any plan.
-        if (alreadyOn(u.billing_plan, wantedPlan())) {
+        // Already on exactly this plan: nothing to buy, so open Stripe's
+        // customer portal. Any other plan, up or down, goes through the API,
+        // which answers a paying account with the portal's plan-change
+        // confirmation (nothing changes until they confirm) and anyone else
+        // with Checkout. billing_plan, not plan: an admin or premium account
+        // that pays nothing is on Free here and can buy any plan.
+        if ((u.billing_plan ?? 'free') === PURCHASABLE_PLANS[wantedPlan()]) {
           openBillingPortal();
           return;
         }
