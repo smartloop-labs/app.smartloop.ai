@@ -18,6 +18,15 @@ import { userService } from '@/app/services/user.service';
 
 type State = 'loading' | 'ready' | 'approving' | 'approved' | 'error';
 
+// What to run after signing in (the CLI's own commands; see gpushed --help).
+const NEXT_STEPS: [string, string][] = [
+  ['gpushed balance', 'to see your credits'],
+  ['gpushed plans', 'for the GPUs you can run and their hourly price'],
+  ['gpushed up', 'to start a GPU box (an L4 unless you name a plan)'],
+  ['gpushed ssh', 'to get a shell on it'],
+  ['gpushed stop', 'when you’re done, so only its disk is billed'],
+];
+
 function CliLoginContent() {
   const searchParams = useSearchParams();
   const code = (searchParams.get('code') ?? '').toUpperCase();
@@ -101,8 +110,24 @@ function CliLoginContent() {
     return card(
       <>
         <h1 className="text-3xl font-normal text-content mb-2">gpushed is signed in</h1>
+        <p className="text-sm text-muted mb-6">
+          {email ? <>Your terminal is signed in as <span className="text-content">{email}</span>. </> : null}
+          Head back to it; you can close this tab.
+        </p>
+
+        <p className="text-sm text-muted mb-3">Next, in your terminal:</p>
+        <ul className="text-sm text-muted space-y-2 mb-6">
+          {NEXT_STEPS.map(([cmd, what]) => (
+            <li key={cmd}>
+              <span className="text-content font-mono">{cmd}</span> {what}
+            </li>
+          ))}
+        </ul>
+
         <p className="text-sm text-muted">
-          Head back to your terminal; you can close this tab.
+          GPU time is paid from your smartloop credits: your plan&apos;s credits first, then any you add.
+          Your balance and invoices are in{' '}
+          <a href="/settings/billing" className="text-content underline underline-offset-2">Billing</a>.
         </p>
       </>
     );
