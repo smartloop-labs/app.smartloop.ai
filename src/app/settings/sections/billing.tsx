@@ -343,11 +343,18 @@ function CreditsSection() {
   const returned = searchParams.get('topup');
 
   useEffect(() => {
-    fetch(`${API_ENDPOINT}/credits`, { headers: { Authorization: `Bearer ${userService.token()}` } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then(setCredits)
-      .catch(() => setCredits(null));
-  }, []);
+    const load = () =>
+      fetch(`${API_ENDPOINT}/credits`, { headers: { Authorization: `Bearer ${userService.token()}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then(setCredits)
+        .catch(() => setCredits(null));
+    load();
+    // Back from paying: Stripe's webhook adds the credits a few seconds
+    // later, so look again a few times rather than show the old balance.
+    if (returned !== 'done') return;
+    const timers = [3000, 8000, 15000].map((ms) => setTimeout(load, ms));
+    return () => timers.forEach(clearTimeout);
+  }, [returned]);
 
   const addCredits = async () => {
     setBusy(true);
@@ -380,6 +387,11 @@ function CreditsSection() {
       {returned === 'done' && (
         <Row stacked>
           <p className="text-sm text-content">Thanks! Your credits will appear in a few seconds.</p>
+        </Row>
+      )}
+      {returned === 'cancelled' && (
+        <Row stacked>
+          <p className="text-sm text-muted">Checkout cancelled. You weren&apos;t charged.</p>
         </Row>
       )}
       <Row
