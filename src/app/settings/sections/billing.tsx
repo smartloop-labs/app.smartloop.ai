@@ -9,6 +9,7 @@ import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import LoadingSpinner from '@/app/components/loading-spinner';
 import { userService } from '@/app/services/user.service';
 import { API_ENDPOINT, PRICING_URL } from '@/app/constants';
@@ -32,7 +33,14 @@ interface PlanInfo {
   available: boolean;
 }
 
-const PLAN_NAME: Record<string, string> = { free: 'Free', paid: 'Pro', plus: 'Plus', admin: 'Admin' };
+const PLAN_NAME: Record<string, string> = {
+  free: 'Free',
+  paid: 'Pro',
+  plus: 'Plus',
+  max: 'Max',
+  partner: 'Partner',
+  admin: 'Admin',
+};
 
 const priceLabel = (price: PlanInfo['price']) =>
   price ? `${formatAmount(price.amount, price.currency)} / ${price.interval ?? 'month'}` : null;
@@ -192,10 +200,13 @@ function PlanCards({
   plan,
   plans,
   onUpgrade,
+  locked = false,
 }: {
   plan: string;
   plans: PlanInfo[] | null;
   onUpgrade: (id: string) => void;
+  /** Shown but not buyable: a Partner's plan is set up by smartloop. */
+  locked?: boolean;
 }) {
   const rank = PLAN_RANK[plan] ?? 0;
   const offered = (plans ?? []).filter((p) => p.available && PURCHASABLE_PLANS[p.id]);
@@ -205,11 +216,21 @@ function PlanCards({
 
   return (
     <Row
-      label={paying ? 'Plans' : 'Upgrade'}
+      label={paying || locked ? 'Plans' : 'Upgrade'}
       description={
-        paying
-          ? "Change plan any time; you'll confirm on Stripe. Upgrades apply now, with the price difference prorated."
-          : "Pick a plan; you'll confirm on Stripe and can change or cancel it there at any time."
+        locked ? (
+          <>
+            Partner accounts don&apos;t change plan here. To change yours,{' '}
+            <a href="mailto:support@smartloop.ai" className="underline" style={{ color: 'var(--accent-text)' }}>
+              talk to us
+            </a>
+            .
+          </>
+        ) : paying ? (
+          "Change plan any time; you'll confirm on Stripe. Upgrades apply now, with the price difference prorated."
+        ) : (
+          "Pick a plan; you'll confirm on Stripe and can change or cancel it there at any time."
+        )
       }
       stacked
     >
@@ -219,8 +240,8 @@ function PlanCards({
       >
         {offered.map((p) => {
           const tier = PLAN_RANK[p.tier] ?? 0;
-          const current = tier === rank;
-          const featured = p.id === top.id && !current && tier > rank;
+          const current = !locked && tier === rank;
+          const featured = !locked && p.id === top.id && !current && tier > rank;
           const below = plans?.find((b) => (PLAN_RANK[b.tier] ?? 0) === (PLAN_RANK[p.tier] ?? 0) - 1) ?? null;
           return (
             <Box
@@ -271,13 +292,24 @@ function PlanCards({
               </ul>
 
               <button
-                onClick={() => !current && onUpgrade(p.id)}
-                disabled={current}
-                className={`plan-card-button mt-auto w-full py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-default ${
+                onClick={() => !current && !locked && onUpgrade(p.id)}
+                disabled={current || locked}
+                className={`plan-card-button mt-auto w-full py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-default inline-flex items-center justify-center gap-1.5 ${
                   featured ? 'plan-card-button--filled' : 'plan-card-button--outlined'
                 }`}
               >
-                {current ? 'Your plan' : tier > rank ? `Upgrade to ${p.name}` : `Switch to ${p.name}`}
+                {locked ? (
+                  <>
+                    <LockOutlinedIcon sx={{ fontSize: 15 }} />
+                    Locked
+                  </>
+                ) : current ? (
+                  'Your plan'
+                ) : tier > rank ? (
+                  `Upgrade to ${p.name}`
+                ) : (
+                  `Switch to ${p.name}`
+                )}
               </button>
             </Box>
           );
@@ -481,7 +513,10 @@ export default function BillingSection() {
   // plus or max. Everything below follows it, so a stale subscription status
   // can never put an "Active" chip next to Free.
   const plan: string = subscription?.plan ?? user?.billing_plan ?? 'free';
-  const isPro = plan !== 'free';
+  // Partner: premium set up by smartloop, not bought. No subscription to
+  // manage, and the plans are shown but locked.
+  const isPartner = plan === 'partner';
+  const isPro = plan !== 'free' && !isPartner;
   const willCancel = subscription?.status === 'will_cancel';
   // current_period_end is an ISO date-time string from the API.
   const periodEnd = subscription?.current_period_end
@@ -558,22 +593,31 @@ export default function BillingSection() {
                     plan={plan}
                     plans={plans}
                     description={
-                      <>
-                        Want cloud models, more credits, or email support?{' '}
-                        <a
-                          href={PRICING_URL}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 underline"
-                          style={{ color: 'var(--accent-text)' }}
-                        >
-                          Compare plans
-                          <OpenInNewIcon sx={{ fontSize: 14 }} />
-                        </a>
-                      </>
+                      isPartner ? (
+                        'Your plan is set up by smartloop as part of a partnership.'
+                      ) : (
+                        <>
+                          Want cloud models, more credits, or email support?{' '}
+                          <a
+                            href={PRICING_URL}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 underline"
+                            style={{ color: 'var(--accent-text)' }}
+                          >
+                            Compare plans
+                            <OpenInNewIcon sx={{ fontSize: 14 }} />
+                          </a>
+                        </>
+                      )
                     }
                   />
-                  <PlanCards plan={plan} plans={plans} onUpgrade={(id) => router.push(checkoutPath(id))} />
+                  <PlanCards
+                    plan={plan}
+                    plans={plans}
+                    locked={isPartner}
+                    onUpgrade={(id) => router.push(checkoutPath(id))}
+                  />
                   <Row stacked>
                     <p className="text-xs text-faint leading-relaxed">
                       Questions about the plans?{' '}

@@ -19,9 +19,16 @@ export const CHECKOUT_PATH = '/upgrade';
 // /users/me, /payments/subscription and the usage meters), low to high.
 export const PLAN_RANK: Record<string, number> = { free: 0, paid: 1, plus: 2, max: 3, admin: 4 };
 
-// What billing shows for a plan; admin and premium accounts that pay nothing
-// are reported as `billing_plan: 'free'` by the API, so they never reach here.
-export const BILLING_PLAN_LABEL: Record<string, string> = { free: 'Free', paid: 'Pro', plus: 'Plus', max: 'Max' };
+// What billing shows for a plan (`billing_plan` from the API). An admin who
+// pays nothing is 'free'; premium set up by smartloop rather than bought is
+// 'partner', whose plan can't be changed here.
+export const BILLING_PLAN_LABEL: Record<string, string> = {
+  free: 'Free',
+  paid: 'Pro',
+  plus: 'Plus',
+  max: 'Max',
+  partner: 'Partner',
+};
 
 // What checkout takes (the marketing names) -> the plan it puts the account on.
 export const PURCHASABLE_PLANS: Record<string, string> = { pro: 'paid', plus: 'plus', max: 'max' };
