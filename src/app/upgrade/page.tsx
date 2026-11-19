@@ -33,6 +33,8 @@ const wantedPlan = () => {
 export default function Upgrade() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // A Partner can't buy a plan, so there is nothing to try again.
+  const [locked, setLocked] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('Redirecting to checkout...');
   // Guards against a second Stripe session from React's double-invoked mount
   // effect in development, or from a retry landing while one is in flight.
@@ -129,12 +131,20 @@ export default function Upgrade() {
           return;
         }
 
+        // A Partner's plan is set up by smartloop; nothing to buy here (the
+        // API refuses it too).
+        if (u.billing_plan === 'partner') {
+          setLocked(true);
+          setErrorMessage("Your Partner plan is set up by smartloop, so it can't be changed here. Contact support@smartloop.ai to change it.");
+          return;
+        }
+
         // Already on exactly this plan: nothing to buy, so open Stripe's
         // customer portal. Any other plan, up or down, goes through the API,
         // which answers a paying account with the portal's plan-change
         // confirmation (nothing changes until they confirm) and anyone else
-        // with Checkout. billing_plan, not plan: an admin or premium account
-        // that pays nothing is on Free here and can buy any plan.
+        // with Checkout. billing_plan, not plan: an admin who pays nothing is
+        // on Free here and can buy any plan.
         if ((u.billing_plan ?? 'free') === PURCHASABLE_PLANS[wantedPlan()]) {
           openBillingPortal();
           return;
@@ -163,16 +173,20 @@ export default function Upgrade() {
           <div className="flex flex-col items-center gap-6 text-center">
             <ErrorOutlineIcon sx={{ fontSize: 56, color: 'var(--muted)' }} />
             <div className="space-y-3">
-              <h3 className="text-2xl font-semibold text-content">Checkout unavailable</h3>
+              <h3 className="text-2xl font-semibold text-content">
+                {locked ? 'Plan set up by smartloop' : 'Checkout unavailable'}
+              </h3>
               <p className="text-muted text-sm">{errorMessage}</p>
             </div>
 
-            <button
-              onClick={startCheckout}
-              className="w-full py-4 rounded-lg font-medium transition-all bg-pink-500 text-white hover:bg-pink-600"
-            >
-              Try again
-            </button>
+            {!locked && (
+              <button
+                onClick={startCheckout}
+                className="w-full py-4 rounded-lg font-medium transition-all bg-pink-500 text-white hover:bg-pink-600"
+              >
+                Try again
+              </button>
+            )}
 
             <a
               href="/billing"
