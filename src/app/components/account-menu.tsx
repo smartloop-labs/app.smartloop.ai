@@ -14,6 +14,7 @@ import { Box, Menu, MenuItem } from '@mui/material';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonOutlineIcon from '@mui/icons-material/PersonOutline';
 import { userService } from '@/app/services/user.service';
+import { BILLING_PLAN_LABEL } from '@/app/shared/utils';
 
 export default function AccountMenu({ user }: { user?: any }) {
   const router = useRouter();
@@ -99,7 +100,7 @@ export default function AccountMenu({ user }: { user?: any }) {
             <Box className="text-faint text-xs leading-tight mt-0.5 truncate">{user.email}</Box>
           )}
           <Box className="text-muted text-xs leading-tight mt-1.5">
-            {(user.is_paid || user.is_premium ? 'Pro Plan' : 'Free Plan')}
+            {`${BILLING_PLAN_LABEL[user.billing_plan] ?? 'Free'} Plan`}
           </Box>
         </Box>
 

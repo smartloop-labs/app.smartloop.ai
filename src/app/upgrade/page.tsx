@@ -6,7 +6,7 @@
 //
 // Marketing links point here (directly, or via /login?plan=pro), so the intent
 // survives the whole auth round-trip instead of being lost on the way to the
-// dashboard. ?plan=plus buys Plus; no plan means Pro. Someone already paying
+// dashboard. ?plan=plus buys Plus, ?plan=max buys Max; no plan means Pro. Someone already paying
 // for a lower plan is moved up through Stripe's plan-change confirmation,
 // which the same API call returns.
 
@@ -133,7 +133,9 @@ export default function Upgrade() {
         // send them to Stripe's customer portal instead. Paying for a lower
         // plan, checkout moves them up (the API answers with the portal's
         // plan-change confirmation). Either way this route ends up on Stripe.
-        if ((u.is_paid || u.is_premium) && alreadyOn(u.plan, wantedPlan())) {
+        // billing_plan, not plan: an admin or premium account that pays
+        // nothing is on Free here and can buy any plan.
+        if (alreadyOn(u.billing_plan, wantedPlan())) {
           openBillingPortal();
           return;
         }

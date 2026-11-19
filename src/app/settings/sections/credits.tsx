@@ -36,7 +36,7 @@ interface Quota {
   in_flight: number;
   period: string;
   resets_at: string;
-  plan: 'free' | 'paid' | 'plus' | 'admin';
+  plan: 'free' | 'paid' | 'plus' | 'max' | 'admin';
 }
 
 interface CreditStatus {
@@ -57,6 +57,7 @@ const PLAN_LABEL: Record<Quota['plan'], string> = {
   free: 'Free',
   paid: 'Pro',
   plus: 'Plus',
+  max: 'Max',
   admin: 'Admin',
 };
 

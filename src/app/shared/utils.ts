@@ -17,10 +17,14 @@ export const CHECKOUT_PATH = '/upgrade';
 
 // The plans an account can be on, as the API reports them (`plan` on
 // /users/me, /payments/subscription and the usage meters), low to high.
-export const PLAN_RANK: Record<string, number> = { free: 0, paid: 1, plus: 2, admin: 3 };
+export const PLAN_RANK: Record<string, number> = { free: 0, paid: 1, plus: 2, max: 3, admin: 4 };
+
+// What billing shows for a plan; admin and premium accounts that pay nothing
+// are reported as `billing_plan: 'free'` by the API, so they never reach here.
+export const BILLING_PLAN_LABEL: Record<string, string> = { free: 'Free', paid: 'Pro', plus: 'Plus', max: 'Max' };
 
 // What checkout takes (the marketing names) -> the plan it puts the account on.
-export const PURCHASABLE_PLANS: Record<string, string> = { pro: 'paid', plus: 'plus' };
+export const PURCHASABLE_PLANS: Record<string, string> = { pro: 'paid', plus: 'plus', max: 'max' };
 
 // The checkout route for a purchasable plan; Pro is the route's default.
 export const checkoutPath = (plan: string) =>

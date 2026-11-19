@@ -18,6 +18,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useAuth } from '@/app/hooks/useAuth';
 import { userService } from '@/app/services/user.service';
 import { API_ENDPOINT } from '@/app/constants';
+import { BILLING_PLAN_LABEL } from '@/app/shared/utils';
 import AppShell from '@/app/components/app-shell';
 import { Row, Section } from '@/app/components/rows';
 import ActivityChart from '@/app/components/activity-chart';
@@ -88,7 +89,7 @@ export default function Profile() {
     );
   }, [user]);
 
-  const plan = user?.is_premium ? 'Premium' : user?.is_paid ? 'Pro' : 'Free';
+  const plan = BILLING_PLAN_LABEL[user?.billing_plan] ?? 'Free';
 
   if (!user) return null;
 
