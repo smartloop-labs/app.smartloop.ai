@@ -364,7 +364,7 @@ export default function CloudUsageSection({ user }: { user: any }) {
   // could not be loaded, the plan comes from the user.
   const needsPro = status
     ? status.reason === 'plan_required'
-    : !!user && !user.admin && !(user.is_paid || user.is_premium);
+    : !!user && !user.admin && !user.is_partner && !(user.is_paid || user.is_premium);
 
   return (
     <Section

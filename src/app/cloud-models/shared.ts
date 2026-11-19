@@ -36,7 +36,7 @@ export interface CloudQuota {
   /** YYYY-MM. */
   period: string;
   resets_at: string;
-  plan: 'free' | 'paid' | 'plus' | 'max' | 'admin';
+  plan: 'free' | 'paid' | 'plus' | 'max' | 'partner' | 'admin';
 }
 
 /** Why cloud models can't run right now, from GET /v1/chat/status.
@@ -54,6 +54,7 @@ export const PLAN_LABEL: Record<CloudQuota['plan'], string> = {
   paid: 'Pro',
   plus: 'Plus',
   max: 'Max',
+  partner: 'Partner',
   admin: 'Admin',
 };
 
