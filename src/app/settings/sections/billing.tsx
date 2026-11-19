@@ -50,6 +50,9 @@ interface Invoice {
   description?: string;
   period_start?: string;
   period_end?: string;
+  // 'topup' for credits added (from here or gpushed), 'plan' for the plan.
+  kind?: 'topup' | 'plan';
+  app?: string;
 }
 
 // One card shape for the whole page. Every panel below uses these values so
@@ -274,6 +277,111 @@ function PlanCards({
         })}
       </Box>
     </Row>
+  );
+}
+
+const CREDIT_AMOUNTS = [10, 25, 50, 100];
+
+interface Credits {
+  plan: string;
+  plan_credits: number | null; // null: unmetered (admin)
+  wallet_credits: number;
+  wallet_usd: number;
+}
+
+/**
+ * Credits added on top of the plan ("Add credits"): one wallet, shared by
+ * cloud models, web searches and gpushed, spent once the plan's monthly
+ * credits run out, and kept from month to month. Checkout opens on the
+ * account's own Stripe customer, so it lands in the same billing history.
+ */
+function CreditsSection() {
+  const searchParams = useSearchParams();
+  const [credits, setCredits] = useState<Credits | null>(null);
+  const [amount, setAmount] = useState(CREDIT_AMOUNTS[1]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const returned = searchParams.get('topup');
+
+  useEffect(() => {
+    fetch(`${API_ENDPOINT}/credits`, { headers: { Authorization: `Bearer ${userService.token()}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setCredits)
+      .catch(() => setCredits(null));
+  }, []);
+
+  const addCredits = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`${API_ENDPOINT}/payments/topup`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${userService.token()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount_usd: amount }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (r.ok && body.checkout_url) {
+        window.location.href = body.checkout_url;
+        return;
+      }
+      setError(body.detail ?? 'Could not start checkout. Try again.');
+    } catch {
+      setError('Could not start checkout. Try again.');
+    }
+    setBusy(false);
+  };
+
+  const fmt = (n: number) => Math.floor(n).toLocaleString();
+
+  return (
+    <Section
+      title="Credits"
+      description="Your plan's credits are spent first each month; added credits cover cloud models, web searches and gpushed after that, and never expire."
+    >
+      {returned === 'done' && (
+        <Row stacked>
+          <p className="text-sm text-content">Thanks! Your credits will appear in a few seconds.</p>
+        </Row>
+      )}
+      <Row
+        label="Plan credits left this month"
+        description={credits?.plan_credits === null ? 'Your plan is unmetered for cloud models.' : undefined}
+      >
+        <span className="text-sm text-content font-medium tabular-nums">
+          {credits ? (credits.plan_credits === null ? '—' : fmt(credits.plan_credits)) : '…'}
+        </span>
+      </Row>
+      <Row label="Added credits" description={credits ? `Worth $${credits.wallet_usd.toFixed(2)}` : undefined}>
+        <span className="text-sm text-content font-medium tabular-nums">{credits ? fmt(credits.wallet_credits) : '…'}</span>
+      </Row>
+      <Row label="Add credits" description="100 credits for every $1." stacked>
+        <Box className="flex flex-col gap-2">
+          <Box className="flex flex-wrap items-center gap-2">
+            {CREDIT_AMOUNTS.map((a) => (
+              <button
+                key={a}
+                onClick={() => setAmount(a)}
+                className={`px-3 py-1.5 rounded-lg text-sm border transition-colors tabular-nums ${
+                  a === amount
+                    ? 'border-accent-border bg-accent-soft text-accent-text font-medium'
+                    : 'border-border text-muted hover:bg-surface-2 hover:text-content'
+                }`}
+              >
+                ${a}
+              </button>
+            ))}
+            <button
+              onClick={addCredits}
+              disabled={busy}
+              className="plan-card-button plan-card-button--filled px-4 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-60"
+            >
+              {busy ? 'Opening checkout…' : `Add $${amount} of credits`}
+            </button>
+          </Box>
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </Box>
+      </Row>
+    </Section>
   );
 }
 
@@ -521,220 +629,234 @@ export default function BillingSection() {
                   <PlanCards plan={plan} plans={plans} onUpgrade={(id) => router.push(checkoutPath(id))} />
                 </Section>
 
-                {/* Billing history. When the API returns an `invoices` array we
-                     render it inline; otherwise we fall back to the Stripe portal. */}
-                <Box className="mt-10">
-                  <Box className="flex items-center justify-between gap-4 mb-4">
-                    <h2 className="text-base md:text-lg font-semibold text-content tracking-tight">Billing history</h2>
-                    {subscription?.portal_url ? (
-                      <a
-                        href={subscription.portal_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-                        style={{ color: 'var(--accent-text)' }}
-                      >
-                        Billing portal
-                        <OpenInNewIcon sx={{ fontSize: 15 }} />
-                      </a>
-                    ) : (
-                      <button
-                        onClick={handleManageBilling}
-                        className="text-sm inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-                        style={{ color: 'var(--accent-text)' }}
-                      >
-                        Billing portal
-                        <OpenInNewIcon sx={{ fontSize: 15 }} />
-                      </button>
-                    )}
-                  </Box>
+              </>
+            )}
 
-                  {(subscription?.invoices as Invoice[] | undefined)?.length ? (
-                    (() => {
-                      const allInvoices = subscription.invoices as Invoice[];
-                      const query = invoiceSearch.trim().toLowerCase();
-                      const filtered = query
-                        ? allInvoices.filter((inv) =>
-                          [
-                            formatInvoiceDate(inv.date),
-                            inv.status,
-                            formatAmount(inv.amount, inv.currency),
-                            inv.number,
-                            inv.description,
-                          ]
-                            .filter(Boolean)
-                            .join(' ')
-                            .toLowerCase()
-                            .includes(query)
-                        )
-                        : allInvoices;
-                      const visible = showAllInvoices
-                        ? filtered
-                        : filtered.slice(0, INVOICE_PREVIEW_COUNT);
-                      const remaining = filtered.length - visible.length;
+            {/* Credits added on top of the plan: one wallet for cloud models,
+                web searches and gpushed, spent once the plan's credits run out. */}
+            {isReady && <CreditsSection />}
 
-                      return (
-                        <>
-                          {/* Search — only worth the row once there's enough
-                              history to scan. */}
-                          {allInvoices.length > INVOICE_PREVIEW_COUNT && (
-                            <Box
-                              className="flex items-center gap-2 mb-3 px-3.5 py-2"
-                              sx={{ ...CARD_SX, borderRadius: '12px' }}
-                            >
-                              <SearchIcon sx={{ fontSize: 18, color: 'var(--muted)' }} />
-                              <input
-                                type="text"
-                                value={invoiceSearch}
-                                onChange={(e) => {
-                                  setInvoiceSearch(e.target.value);
-                                  setShowAllInvoices(true);
-                                }}
-                                placeholder="Search invoices by date, amount, or status"
-                                className="flex-1 bg-transparent text-sm text-content placeholder:text-faint outline-none border-none"
-                              />
-                            </Box>
-                          )}
-
-                          <Box sx={{ ...CARD_SX, overflow: 'hidden' }}>
-                            {visible.length === 0 ? (
-                              <Box className="px-5 md:px-6 py-8 text-center">
-                                <p className="text-sm text-muted">No invoices match “{invoiceSearch}”.</p>
-                              </Box>
-                            ) : (
-                              visible.map((inv, idx) => {
-                                const badge = invoiceStatusColor(inv.status);
-                                return (
-                                  <Box
-                                    key={inv.id}
-                                    className="flex items-center justify-between gap-4 px-5 md:px-6 py-4"
-                                    sx={{
-                                      borderTop: idx === 0 ? 'none' : '1px solid var(--border)',
-                                      transition: 'background-color 0.15s ease',
-                                      '&:hover': { bgcolor: 'var(--surface-2)' },
-                                    }}
-                                  >
-                                    <Box className="flex items-center gap-3.5 min-w-0">
-                                      <Box
-                                        sx={{
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          justifyContent: 'center',
-                                          width: 40,
-                                          height: 40,
-                                          flexShrink: 0,
-                                          borderRadius: '10px',
-                                          border: '1px solid var(--border)',
-                                          bgcolor: 'var(--surface-2)',
-                                        }}
-                                      >
-                                        <ReceiptLongOutlinedIcon sx={{ fontSize: 20, color: 'var(--muted)' }} />
-                                      </Box>
-                                      <Box className="min-w-0">
-                                        <Box className="flex items-center gap-2 flex-wrap">
-                                          <p className="text-sm text-content font-medium">{formatInvoiceDate(inv.date)}</p>
-                                          {inv.number && (
-                                            <span className="text-xs text-faint font-mono">{inv.number}</span>
-                                          )}
-                                        </Box>
-                                        {inv.description && (
-                                          <p className="text-xs text-muted mt-0.5 truncate">{inv.description}</p>
-                                        )}
-                                        <Box className="flex items-center gap-2 flex-wrap mt-1.5">
-                                          <span
-                                            className="border-[0.5px] border-solid"
-                                            style={{
-                                              display: 'inline-block',
-                                              padding: '2px 8px',
-                                              fontSize: '11px',
-                                              fontWeight: 600,
-                                              lineHeight: 1.4,
-                                              borderRadius: '999px',
-                                              textTransform: 'capitalize',
-                                              backgroundColor: badge.bg,
-                                              color: badge.color,
-                                              borderColor: badge.border,
-                                            }}
-                                          >
-                                            {inv.status}
-                                          </span>
-                                          {formatBillingPeriod(inv.period_start, inv.period_end) && (
-                                            <span className="text-xs text-faint">
-                                              {formatBillingPeriod(inv.period_start, inv.period_end)}
-                                            </span>
-                                          )}
-                                        </Box>
-                                      </Box>
-                                    </Box>
-                                    <Box className="flex items-center gap-3 shrink-0">
-                                      <span className="text-sm text-content font-medium">
-                                        {formatAmount(inv.amount, inv.currency)}
-                                      </span>
-                                      {inv.hosted_invoice_url && (
-                                        <a
-                                          href={inv.hosted_invoice_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          title="View invoice"
-                                          className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-content px-3 py-1.5 rounded-lg border border-border hover:border-muted transition-colors"
-                                        >
-                                          <OpenInNewIcon sx={{ fontSize: 16 }} />
-                                          <span className="hidden sm:inline">View</span>
-                                        </a>
-                                      )}
-                                      {inv.pdf_url && (
-                                        <a
-                                          href={inv.pdf_url}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          title="Download invoice (PDF)"
-                                          className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-content px-3 py-1.5 rounded-lg border border-border hover:border-muted transition-colors"
-                                        >
-                                          <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
-                                          <span className="hidden sm:inline">PDF</span>
-                                        </a>
-                                      )}
-                                    </Box>
-                                  </Box>
-                                );
-                              })
-                            )}
-                          </Box>
-
-                          {/* Expand / collapse */}
-                          {filtered.length > INVOICE_PREVIEW_COUNT && (
-                            <Box className="flex justify-center mt-3">
-                              <button
-                                onClick={() => setShowAllInvoices((v) => !v)}
-                                className="inline-flex items-center gap-1 text-sm text-muted hover:text-content transition-colors"
-                              >
-                                {showAllInvoices ? 'Show less' : `Show ${remaining} more`}
-                                <ExpandMoreIcon
-                                  sx={{
-                                    fontSize: 18,
-                                    transition: 'transform 0.15s ease',
-                                    transform: showAllInvoices ? 'rotate(180deg)' : 'none',
-                                  }}
-                                />
-                              </button>
-                            </Box>
-                          )}
-                        </>
-                      );
-                    })()
+            {isReady && (isPro || !!(subscription?.invoices as Invoice[] | undefined)?.length) && (
+              <>
+              {/* Billing history. When the API returns an `invoices` array we
+                   render it inline; otherwise we fall back to the Stripe portal. */}
+              <Box className="mt-10">
+                <Box className="flex items-center justify-between gap-4 mb-4">
+                  <h2 className="text-base md:text-lg font-semibold text-content tracking-tight">Billing history</h2>
+                  {subscription?.portal_url ? (
+                    <a
+                      href={subscription.portal_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+                      style={{ color: 'var(--accent-text)' }}
+                    >
+                      Billing portal
+                      <OpenInNewIcon sx={{ fontSize: 15 }} />
+                    </a>
                   ) : (
-                    <Box sx={{ ...CARD_SX, padding: CARD_PADDING }} className="flex items-start gap-3">
-                      <ReceiptLongOutlinedIcon sx={{ fontSize: 24, color: 'var(--muted)', mt: 0.25 }} />
-                      <Box>
-                        <p className="text-sm text-content font-medium">No invoices yet</p>
-                        <p className="text-xs text-faint mt-1 leading-relaxed">
-                          Your invoices will appear here once your first payment is processed. Payment methods and full
-                          history are always available in the Stripe billing portal.
-                        </p>
-                      </Box>
-                    </Box>
+                    <button
+                      onClick={handleManageBilling}
+                      className="text-sm inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+                      style={{ color: 'var(--accent-text)' }}
+                    >
+                      Billing portal
+                      <OpenInNewIcon sx={{ fontSize: 15 }} />
+                    </button>
                   )}
                 </Box>
+
+                {(subscription?.invoices as Invoice[] | undefined)?.length ? (
+                  (() => {
+                    const allInvoices = subscription.invoices as Invoice[];
+                    const query = invoiceSearch.trim().toLowerCase();
+                    const filtered = query
+                      ? allInvoices.filter((inv) =>
+                        [
+                          formatInvoiceDate(inv.date),
+                          inv.status,
+                          formatAmount(inv.amount, inv.currency),
+                          inv.number,
+                          inv.description,
+                        ]
+                          .filter(Boolean)
+                          .join(' ')
+                          .toLowerCase()
+                          .includes(query)
+                      )
+                      : allInvoices;
+                    const visible = showAllInvoices
+                      ? filtered
+                      : filtered.slice(0, INVOICE_PREVIEW_COUNT);
+                    const remaining = filtered.length - visible.length;
+
+                    return (
+                      <>
+                        {/* Search — only worth the row once there's enough
+                            history to scan. */}
+                        {allInvoices.length > INVOICE_PREVIEW_COUNT && (
+                          <Box
+                            className="flex items-center gap-2 mb-3 px-3.5 py-2"
+                            sx={{ ...CARD_SX, borderRadius: '12px' }}
+                          >
+                            <SearchIcon sx={{ fontSize: 18, color: 'var(--muted)' }} />
+                            <input
+                              type="text"
+                              value={invoiceSearch}
+                              onChange={(e) => {
+                                setInvoiceSearch(e.target.value);
+                                setShowAllInvoices(true);
+                              }}
+                              placeholder="Search invoices by date, amount, or status"
+                              className="flex-1 bg-transparent text-sm text-content placeholder:text-faint outline-none border-none"
+                            />
+                          </Box>
+                        )}
+
+                        <Box sx={{ ...CARD_SX, overflow: 'hidden' }}>
+                          {visible.length === 0 ? (
+                            <Box className="px-5 md:px-6 py-8 text-center">
+                              <p className="text-sm text-muted">No invoices match “{invoiceSearch}”.</p>
+                            </Box>
+                          ) : (
+                            visible.map((inv, idx) => {
+                              const badge = invoiceStatusColor(inv.status);
+                              return (
+                                <Box
+                                  key={inv.id}
+                                  className="flex items-center justify-between gap-4 px-5 md:px-6 py-4"
+                                  sx={{
+                                    borderTop: idx === 0 ? 'none' : '1px solid var(--border)',
+                                    transition: 'background-color 0.15s ease',
+                                    '&:hover': { bgcolor: 'var(--surface-2)' },
+                                  }}
+                                >
+                                  <Box className="flex items-center gap-3.5 min-w-0">
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: 40,
+                                        height: 40,
+                                        flexShrink: 0,
+                                        borderRadius: '10px',
+                                        border: '1px solid var(--border)',
+                                        bgcolor: 'var(--surface-2)',
+                                      }}
+                                    >
+                                      <ReceiptLongOutlinedIcon sx={{ fontSize: 20, color: 'var(--muted)' }} />
+                                    </Box>
+                                    <Box className="min-w-0">
+                                      <Box className="flex items-center gap-2 flex-wrap">
+                                        <p className="text-sm text-content font-medium">{formatInvoiceDate(inv.date)}</p>
+                                        {inv.number && (
+                                          <span className="text-xs text-faint font-mono">{inv.number}</span>
+                                        )}
+                                      </Box>
+                                      {inv.description && (
+                                        <p className="text-xs text-muted mt-0.5 truncate">{inv.description}</p>
+                                      )}
+                                      <Box className="flex items-center gap-2 flex-wrap mt-1.5">
+                                        <span
+                                          className="border-[0.5px] border-solid"
+                                          style={{
+                                            display: 'inline-block',
+                                            padding: '2px 8px',
+                                            fontSize: '11px',
+                                            fontWeight: 600,
+                                            lineHeight: 1.4,
+                                            borderRadius: '999px',
+                                            textTransform: 'capitalize',
+                                            backgroundColor: badge.bg,
+                                            color: badge.color,
+                                            borderColor: badge.border,
+                                          }}
+                                        >
+                                          {inv.status}
+                                        </span>
+                                        <span className="text-xs text-faint">
+                                          {inv.kind === 'topup'
+                                            ? `Credits added${inv.app === 'gpushed' ? ' · gpushed' : ''}`
+                                            : 'Plan'}
+                                        </span>
+                                        {formatBillingPeriod(inv.period_start, inv.period_end) && (
+                                          <span className="text-xs text-faint">
+                                            {formatBillingPeriod(inv.period_start, inv.period_end)}
+                                          </span>
+                                        )}
+                                      </Box>
+                                    </Box>
+                                  </Box>
+                                  <Box className="flex items-center gap-3 shrink-0">
+                                    <span className="text-sm text-content font-medium">
+                                      {formatAmount(inv.amount, inv.currency)}
+                                    </span>
+                                    {inv.hosted_invoice_url && (
+                                      <a
+                                        href={inv.hosted_invoice_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="View invoice"
+                                        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-content px-3 py-1.5 rounded-lg border border-border hover:border-muted transition-colors"
+                                      >
+                                        <OpenInNewIcon sx={{ fontSize: 16 }} />
+                                        <span className="hidden sm:inline">View</span>
+                                      </a>
+                                    )}
+                                    {inv.pdf_url && (
+                                      <a
+                                        href={inv.pdf_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Download invoice (PDF)"
+                                        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-content px-3 py-1.5 rounded-lg border border-border hover:border-muted transition-colors"
+                                      >
+                                        <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
+                                        <span className="hidden sm:inline">PDF</span>
+                                      </a>
+                                    )}
+                                  </Box>
+                                </Box>
+                              );
+                            })
+                          )}
+                        </Box>
+
+                        {/* Expand / collapse */}
+                        {filtered.length > INVOICE_PREVIEW_COUNT && (
+                          <Box className="flex justify-center mt-3">
+                            <button
+                              onClick={() => setShowAllInvoices((v) => !v)}
+                              className="inline-flex items-center gap-1 text-sm text-muted hover:text-content transition-colors"
+                            >
+                              {showAllInvoices ? 'Show less' : `Show ${remaining} more`}
+                              <ExpandMoreIcon
+                                sx={{
+                                  fontSize: 18,
+                                  transition: 'transform 0.15s ease',
+                                  transform: showAllInvoices ? 'rotate(180deg)' : 'none',
+                                }}
+                              />
+                            </button>
+                          </Box>
+                        )}
+                      </>
+                    );
+                  })()
+                ) : (
+                  <Box sx={{ ...CARD_SX, padding: CARD_PADDING }} className="flex items-start gap-3">
+                    <ReceiptLongOutlinedIcon sx={{ fontSize: 24, color: 'var(--muted)', mt: 0.25 }} />
+                    <Box>
+                      <p className="text-sm text-content font-medium">No invoices yet</p>
+                      <p className="text-xs text-faint mt-1 leading-relaxed">
+                        Your invoices will appear here once your first payment is processed. Payment methods and full
+                        history are always available in the Stripe billing portal.
+                      </p>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
               </>
             )}
     </>
