@@ -4,7 +4,7 @@
 [![Built with Next.js](https://img.shields.io/badge/built%20with-Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 
 The account console for [Smartloop](https://smartloop.ai) at
-**[console.smartloop.ai](https://console.smartloop.ai)**. It's where you sign up, sign
+**[console.smartloop.ai](https://console.smartloop.ai)** (formerly app.smartloop.ai). It's where you sign up, sign
 in, manage access tokens for [Docent](https://github.com/smartloop-ai/docent)
 and Smartloop Studio, turn on web search, and manage your plan, credits and
 billing.
@@ -93,8 +93,15 @@ dynamic route segments; anything that varies per request, such as an OAuth
 
 Merging to `main` publishes the app to GitHub Pages
 (`.github/workflows/deploy-pages.yml`); there's nothing to deploy by hand. Pull
-requests are checked by CI first (type check and build). DNS for
-`console.smartloop.ai` is on Cloudflare.
+requests are checked by CI first (type check and build). DNS for both domains
+is on Cloudflare.
+
+We're moving from `app.smartloop.ai` to `console.smartloop.ai` gradually, so
+both serve the app. GitHub Pages still serves `app.smartloop.ai`
+(`public/CNAME`), and a Cloudflare Worker on `console.smartloop.ai` proxies to
+it. The app only uses relative URLs, so it runs on either host. Once nothing
+links to `app` any more, switch `public/CNAME` and the Pages custom domain to
+`console`, remove the Worker, and redirect `app` to `console`.
 
 ## Contributing
 
