@@ -4,7 +4,7 @@
 [![Built with Next.js](https://img.shields.io/badge/built%20with-Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 
 The account console for [Smartloop](https://smartloop.ai) at
-**[app.smartloop.ai](https://app.smartloop.ai)**. It's where you sign up, sign
+**[console.smartloop.ai](https://console.smartloop.ai)**. It's where you sign up, sign
 in, manage access tokens for [Docent](https://github.com/smartloop-ai/docent)
 and Smartloop Studio, turn on web search, and manage your plan, credits and
 billing.
@@ -94,7 +94,7 @@ dynamic route segments; anything that varies per request, such as an OAuth
 Merging to `main` publishes the app to GitHub Pages
 (`.github/workflows/deploy-pages.yml`); there's nothing to deploy by hand. Pull
 requests are checked by CI first (type check and build). DNS for
-`app.smartloop.ai` is on Cloudflare.
+`console.smartloop.ai` is on Cloudflare.
 
 ## Contributing
 

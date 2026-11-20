@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve the Smartloop console at app.smartloop.ai.
+Thanks for helping improve the Smartloop console at console.smartloop.ai.
 
 By contributing, you agree that your changes are licensed under the
 [MIT License](LICENSE), the same as the rest of the repo.

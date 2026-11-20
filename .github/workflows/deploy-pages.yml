@@ -1,5 +1,5 @@
 # Builds the app as a static export and publishes it to GitHub Pages
-# (app.smartloop.ai) on every merge to main, or on demand.
+# (console.smartloop.ai) on every merge to main, or on demand.
 name: Deploy to GitHub Pages
 
 on:
